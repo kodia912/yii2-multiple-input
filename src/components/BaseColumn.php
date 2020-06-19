@@ -52,6 +52,7 @@ abstract class BaseColumn extends BaseObject
      * @var string the header cell content. Note that it will not be HTML-encoded.
      */
     public $title;
+    public $hint;
 
     /**
      * @var string input type
@@ -248,11 +249,33 @@ abstract class BaseColumn extends BaseObject
         if ($this->value instanceof \Closure) {
             $value = call_user_func($this->value, $data, $contextParams);
         } else {
-            $valuePreparer = new ValuePreparer($this->name, $this->defaultValue);
-            $value = $valuePreparer->prepare($data);
+            $value = null;
+            if ($data instanceof ActiveRecordInterface ) {
+                $relation = $data->getRelation($this->name, false);
+                if ($relation !== null) {
+                    $value = $relation->findFor($this->name, $data);
+                } else {
+                    $value = $data->getAttribute($this->name);
+                }
+            } elseif ($data instanceof Model) {
+                $value = $data->{$this->name};
+            } elseif (is_array($data)) {
+                $value = ArrayHelper::getValue($data, $this->name, null);
+            } elseif(is_string($data) || is_numeric($data)) {
+                $value = $data;
+            }
+
+            if ($this->defaultValue !== null && $this->isEmpty($value)) {
+                $value = $this->defaultValue;
+            }
         }
 
         return $value;
+    }
+
+    protected function isEmpty($value)
+    {
+        return $value === null || $value === [] || $value === '';
     }
 
     /**
@@ -330,7 +353,7 @@ abstract class BaseColumn extends BaseObject
             $input = $this->renderDefault($name, $value, $options);
         }
 
-        return strtr($this->inputTemplate, ['{input}' => $input]);
+        return strtr($this->inputTemplate, ['{input}' => $input]).'<div class="hint-block">'.$this->hint.'</div>';
     }
 
     private function replaceIndexPlaceholderInOptions($options, $indexPlaceholder, $index)
@@ -367,9 +390,7 @@ abstract class BaseColumn extends BaseObject
             Html::addCssClass($options, 'form-control');
         }
 
-        if (!isset($options['tabindex'])) {
-            $options['tabindex'] = self::TABINDEX;
-        }
+        $options['tabindex'] = self::TABINDEX;
 
         return Html::dropDownList($name, $value, $this->prepareItems($this->items), $options);
     }
@@ -403,9 +424,7 @@ abstract class BaseColumn extends BaseObject
             Html::addCssClass($options, 'form-control');
         }
 
-        if (!isset($options['tabindex'])) {
-            $options['tabindex'] = self::TABINDEX;
-        }
+        $options['tabindex'] = self::TABINDEX;
 
         return Html::listBox($name, $value, $this->prepareItems($this->items), $options);
     }
@@ -433,9 +452,7 @@ abstract class BaseColumn extends BaseObject
      */
     protected function renderRadio($name, $value, $options)
     {
-        if (!isset($options['tabindex'])) {
-            $options['tabindex'] = self::TABINDEX;
-        }
+        $options['tabindex'] = self::TABINDEX;
 
         if (!isset($options['label'])) {
             $options['label'] = '';
@@ -460,9 +477,7 @@ abstract class BaseColumn extends BaseObject
      */
     protected function renderRadioList($name, $value, $options)
     {
-        if (!isset($options['tabindex'])) {
-            $options['tabindex'] = self::TABINDEX;
-        }
+        $options['tabindex'] = self::TABINDEX;
 
         if (!array_key_exists('unselect', $options)) {
             $options['unselect'] = '';
@@ -494,9 +509,7 @@ abstract class BaseColumn extends BaseObject
      */
     protected function renderCheckbox($name, $value, $options)
     {
-        if (!isset($options['tabindex'])) {
-            $options['tabindex'] = self::TABINDEX;
-        }
+        $options['tabindex'] = self::TABINDEX;
 
         if (!isset($options['label'])) {
             $options['label'] = '';
@@ -521,9 +534,7 @@ abstract class BaseColumn extends BaseObject
      */
     protected function renderCheckboxList($name, $value, $options)
     {
-        if (!isset($options['tabindex'])) {
-            $options['tabindex'] = self::TABINDEX;
-        }
+        $options['tabindex'] = self::TABINDEX;
 
         if (!array_key_exists('unselect', $options)) {
             $options['unselect'] = '';
@@ -555,9 +566,7 @@ abstract class BaseColumn extends BaseObject
      */
     protected function renderStatic($name, $value, $options)
     {
-        if (!isset($options['tabindex'])) {
-            $options['tabindex'] = self::TABINDEX;
-        }
+        $options['tabindex'] = self::TABINDEX;
 
         if ($this->renderer->isBootstrapTheme()) {
             Html::addCssClass($options, 'form-control-static');
@@ -604,9 +613,7 @@ abstract class BaseColumn extends BaseObject
         $type = $this->type;
 
         if (method_exists('yii\helpers\Html', $type)) {
-            if (!isset($options['tabindex'])) {
-                $options['tabindex'] = self::TABINDEX;
-            }
+            $options['tabindex'] = self::TABINDEX;
 
             if ($this->renderer->isBootstrapTheme()) {
                 Html::addCssClass($options, 'form-control');
@@ -633,8 +640,6 @@ abstract class BaseColumn extends BaseObject
      */
     protected function renderWidget($type, $name, $value, $options)
     {
-
-        $tabindex = isset($options['options']['tabindex']) ? $options['options']['tabindex'] : self::TABINDEX;
         unset($options['tabindex']);
 
         $model = $this->getModel();
@@ -646,7 +651,7 @@ abstract class BaseColumn extends BaseObject
                 'options'   => [
                     'id'        => $this->normalize($name),
                     'name'      => $name,
-                    'tabindex'  => $tabindex,
+                    'tabindex'  => self::TABINDEX,
                     'value'     => $value
                 ]
             ];
@@ -657,7 +662,7 @@ abstract class BaseColumn extends BaseObject
                 'options'   => [
                     'id'        => $this->normalize($name),
                     'name'      => $name,
-                    'tabindex'  => $tabindex,
+                    'tabindex'  => self::TABINDEX,
                     'value'     => $value
                 ]
             ];
